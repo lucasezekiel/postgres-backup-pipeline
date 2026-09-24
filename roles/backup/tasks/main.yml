@@ -1,0 +1,52 @@
+---
+- name: Crear directorio de backups
+  ansible.builtin.file:
+    path: "{{ backup_dir }}"
+    state: directory
+    owner: postgres
+    group: postgres
+    mode: '0750'
+
+- name: Crear directorio para los scripts
+  ansible.builtin.file:
+    path: /opt/postgres-backup
+    state: directory
+    mode: '0755'
+
+- name: Copiar el script de backup
+  ansible.builtin.template:
+    src: pg_backup.sh.j2
+    dest: /opt/postgres-backup/backup.sh
+    owner: postgres
+    group: postgres
+    mode: '0750'
+
+- name: Copiar el script de verificación de restore
+  ansible.builtin.template:
+    src: pg_verify_restore.sh.j2
+    dest: /opt/postgres-backup/verify_restore.sh
+    owner: postgres
+    group: postgres
+    mode: '0750'
+
+- name: Crear unidades systemd
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    mode: '0644'
+  loop:
+    - pg_backup.service
+    - pg_backup.timer
+    - pg_verify_restore.service
+    - pg_verify_restore.timer
+  notify: Recargar systemd
+
+- name: Habilitar e iniciar los timers
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+    daemon_reload: true
+  loop:
+    - pg_backup.timer
+    - pg_verify_restore.timer

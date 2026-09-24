@@ -1,0 +1,28 @@
+#!/bin/bash
+set -euo pipefail
+
+BACKUP_DIR="{{ backup_dir }}"
+DB_NAME="{{ db_name }}"
+TEST_DB="${DB_NAME}_restore_test"
+LATEST_BACKUP=$(ls -t "${BACKUP_DIR}"/${DB_NAME}_*.sql.gz 2>/dev/null | head -1)
+
+if [ -z "$LATEST_BACKUP" ]; then
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - No backup found to verify" >> "${BACKUP_DIR}/verify.log"
+  exit 1
+fi
+
+dropdb --if-exists "$TEST_DB"
+createdb "$TEST_DB"
+gunzip -c "$LATEST_BACKUP" | psql -d "$TEST_DB" -q
+
+ORIGINAL_COUNT=$(psql -d "$DB_NAME" -t -c "SELECT COUNT(*) FROM inventory;" | tr -d ' ')
+RESTORED_COUNT=$(psql -d "$TEST_DB" -t -c "SELECT COUNT(*) FROM inventory;" | tr -d ' ')
+
+dropdb "$TEST_DB"
+
+if [ "$ORIGINAL_COUNT" == "$RESTORED_COUNT" ]; then
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - Verification OK: $LATEST_BACKUP ($RESTORED_COUNT rows match)" >> "${BACKUP_DIR}/verify.log"
+else
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - VERIFICATION FAILED: $LATEST_BACKUP (original=$ORIGINAL_COUNT restored=$RESTORED_COUNT)" >> "${BACKUP_DIR}/verify.log"
+  exit 1
+fi

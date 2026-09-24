@@ -1,0 +1,8 @@
+[Unit]
+Description=PostgreSQL backup for {{ db_name }}
+After=postgresql.service
+
+[Service]
+Type=oneshot
+User=postgres
+ExecStart=/opt/postgres-backup/backup.sh

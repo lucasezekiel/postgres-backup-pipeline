@@ -1,0 +1,6 @@
+db_name: "inventory_db"
+db_user: "app_user"
+postgres_password: "{{ vault_postgres_password }}"
+
+backup_dir: "/var/backups/postgres"
+backup_retention_days: 7

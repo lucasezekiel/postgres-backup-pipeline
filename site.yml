@@ -1,0 +1,7 @@
+---
+- name: Provisionar PostgreSQL con datos de prueba
+  hosts: all
+  become: true
+  roles:
+    - postgresql
+    - backup

@@ -1,0 +1,36 @@
+---
+- name: Instalar PostgreSQL y dependencias de Python
+  ansible.builtin.apt:
+    name:
+      - postgresql
+      - postgresql-contrib
+      - python3-psycopg2
+    state: present
+    update_cache: true
+
+- name: Asegurar que PostgreSQL esté activo y habilitado
+  ansible.builtin.service:
+    name: postgresql
+    state: started
+    enabled: true
+
+- name: Crear la base de datos
+  become_user: postgres
+  community.postgresql.postgresql_db:
+    name: "{{ db_name }}"
+    state: present
+
+- name: Crear el usuario de la aplicación
+  become_user: postgres
+  community.postgresql.postgresql_user:
+    db: "{{ db_name }}"
+    name: "{{ db_user }}"
+    password: "{{ postgres_password }}"
+    priv: "ALL"
+    state: present
+
+- name: Cargar esquema y datos semilla
+  become_user: postgres
+  community.postgresql.postgresql_query:
+    db: "{{ db_name }}"
+    query: "{{ lookup('file', role_path + '/files/schema.sql') }}"
