@@ -5,10 +5,35 @@ BACKUP_DIR="{{ backup_dir }}"
 DB_NAME="{{ db_name }}"
 RETENTION_DAYS={{ backup_retention_days }}
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-FILENAME="${BACKUP_DIR}/${DB_NAME}_${TIMESTAMP}.sql.gz"
 
-pg_dump "$DB_NAME" | gzip > "$FILENAME"
+if [[ ! "$DB_NAME" =~ ^[a-zA-Z0-9_]+$ ]] || [[ ! "$RETENTION_DAYS" =~ ^[0-9]+$ ]]; then
+  echo "Invalid database name or retention period" >&2
+  exit 1
+fi
+
+# Match only this database's documented legacy and current backup formats.
+DATE_PATTERN='[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]'
+TIME_PATTERN='[0-9][0-9][0-9][0-9][0-9][0-9]'
+RANDOM_PATTERN='[A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9]'
+STAMP_PATTERN="${DB_NAME}_${DATE_PATTERN}_${TIME_PATTERN}"
+
+# Keep incomplete dumps hidden and outside the final backup filename pattern.
+TEMP_FILE=$(mktemp "${BACKUP_DIR}/.${DB_NAME}_${TIMESTAMP}.XXXXXX")
+trap 'rm -f -- "$TEMP_FILE"' EXIT
+TEMP_NAME="${TEMP_FILE##*/}"
+FILENAME="${BACKUP_DIR}/${TEMP_NAME#.}.sql.gz"
+
+pg_dump -- "$DB_NAME" | gzip > "$TEMP_FILE"
+
+# Linking within the same directory publishes the complete file atomically and
+# fails rather than overwriting an existing backup.
+ln -- "$TEMP_FILE" "$FILENAME"
+rm -- "$TEMP_FILE"
+trap - EXIT
 
 echo "$(date '+%Y-%m-%d %H:%M:%S') - Backup created: $FILENAME ($(du -h "$FILENAME" | cut -f1))" >> "${BACKUP_DIR}/backup.log"
 
-find "$BACKUP_DIR" -name "${DB_NAME}_*.sql.gz" -mtime +${RETENTION_DAYS} -delete
+find "$BACKUP_DIR" -type f \( \
+  -name "${STAMP_PATTERN}.sql.gz" -o \
+  -name "${STAMP_PATTERN}.${RANDOM_PATTERN}.sql.gz" \
+\) -mtime "+${RETENTION_DAYS}" -delete

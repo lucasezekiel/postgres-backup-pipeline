@@ -1,0 +1,35 @@
+---
+name: Static checks and simulated tests
+
+"on":
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install validation tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y shellcheck
+          python -m pip install ansible-core==2.22.0 ansible-lint==26.11.0
+      - name: Install Ansible collection
+        run: ansible-galaxy collection install -r requirements.yml
+      - name: Run simulated script tests
+        run: python -m unittest discover -s tests -v
+      - name: Check rendered shell scripts
+        run: python scripts/check_templates.py
+      - name: Check Ansible syntax and lint
+        run: python scripts/check_ansible.py

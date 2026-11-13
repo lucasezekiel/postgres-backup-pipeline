@@ -15,22 +15,35 @@
     enabled: true
 
 - name: Crear la base de datos
+  become: true
   become_user: postgres
   community.postgresql.postgresql_db:
     name: "{{ db_name }}"
     state: present
 
 - name: Crear el usuario de la aplicación
+  become: true
   become_user: postgres
+  no_log: true
   community.postgresql.postgresql_user:
-    db: "{{ db_name }}"
+    login_db: "{{ db_name }}"
     name: "{{ db_user }}"
     password: "{{ postgres_password }}"
-    priv: "ALL"
+    state: present
+
+- name: Otorgar privilegios sobre la base de datos
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_privs:
+    login_db: "{{ db_name }}"
+    type: database
+    roles: "{{ db_user }}"
+    privs: ALL
     state: present
 
 - name: Cargar esquema y datos semilla
+  become: true
   become_user: postgres
   community.postgresql.postgresql_query:
-    db: "{{ db_name }}"
+    login_db: "{{ db_name }}"
     query: "{{ lookup('file', role_path + '/files/schema.sql') }}"

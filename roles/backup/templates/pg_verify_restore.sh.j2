@@ -3,22 +3,60 @@ set -euo pipefail
 
 BACKUP_DIR="{{ backup_dir }}"
 DB_NAME="{{ db_name }}"
-TEST_DB="${DB_NAME}_restore_test"
-LATEST_BACKUP=$(ls -t "${BACKUP_DIR}"/${DB_NAME}_*.sql.gz 2>/dev/null | head -1)
+
+if [[ ! "$DB_NAME" =~ ^[a-zA-Z0-9_]+$ ]]; then
+  echo "Invalid database name" >&2
+  exit 1
+fi
+
+# Match only this database's documented legacy and current backup formats.
+DATE_PATTERN='[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]'
+TIME_PATTERN='[0-9][0-9][0-9][0-9][0-9][0-9]'
+RANDOM_PATTERN='[A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9]'
+STAMP_PATTERN="${DB_NAME}_${DATE_PATTERN}_${TIME_PATTERN}"
+
+LATEST_BACKUP=""
+shopt -s nullglob
+# The validated database name and patterns contain no whitespace; expand the
+# patterns deliberately so Bash selects only matching files in BACKUP_DIR.
+# shellcheck disable=SC2086
+for backup in "$BACKUP_DIR"/${STAMP_PATTERN}.sql.gz "$BACKUP_DIR"/${STAMP_PATTERN}.${RANDOM_PATTERN}.sql.gz; do
+  if [[ -f "$backup" ]] && { [[ -z "$LATEST_BACKUP" ]] || [[ "$backup" -nt "$LATEST_BACKUP" ]]; }; then
+    LATEST_BACKUP="$backup"
+  fi
+done
+shopt -u nullglob
 
 if [ -z "$LATEST_BACKUP" ]; then
   echo "$(date '+%Y-%m-%d %H:%M:%S') - No backup found to verify" >> "${BACKUP_DIR}/verify.log"
   exit 1
 fi
 
-dropdb --if-exists "$TEST_DB"
-createdb "$TEST_DB"
-gunzip -c "$LATEST_BACKUP" | psql -d "$TEST_DB" -q
+TEST_DB="backup_verify_$$_${RANDOM}_${RANDOM}"
+# Never remove a pre-existing database: only clean up after createdb succeeds.
+createdb -- "$TEST_DB"
+cleanup() {
+  local status=$?
+  if ! dropdb -- "$TEST_DB"; then
+    echo "Failed to remove temporary database: $TEST_DB" >&2
+    if (( status == 0 )); then
+      status=1
+    fi
+  fi
+  exit "$status"
+}
+trap cleanup EXIT
+gunzip -c -- "$LATEST_BACKUP" | psql -X -v ON_ERROR_STOP=1 -d "$TEST_DB" -q
 
-ORIGINAL_COUNT=$(psql -d "$DB_NAME" -t -c "SELECT COUNT(*) FROM inventory;" | tr -d ' ')
-RESTORED_COUNT=$(psql -d "$TEST_DB" -t -c "SELECT COUNT(*) FROM inventory;" | tr -d ' ')
+ORIGINAL_COUNT=$(psql -X -v ON_ERROR_STOP=1 -d "$DB_NAME" -At -c "SELECT COUNT(*) FROM inventory;")
+RESTORED_COUNT=$(psql -X -v ON_ERROR_STOP=1 -d "$TEST_DB" -At -c "SELECT COUNT(*) FROM inventory;")
 
-dropdb "$TEST_DB"
+if ! dropdb -- "$TEST_DB"; then
+  trap - EXIT
+  echo "Failed to remove temporary database: $TEST_DB" >&2
+  exit 1
+fi
+trap - EXIT
 
 if [ "$ORIGINAL_COUNT" == "$RESTORED_COUNT" ]; then
   echo "$(date '+%Y-%m-%d %H:%M:%S') - Verification OK: $LATEST_BACKUP ($RESTORED_COUNT rows match)" >> "${BACKUP_DIR}/verify.log"
