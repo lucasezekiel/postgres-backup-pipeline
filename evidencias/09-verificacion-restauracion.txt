@@ -1,0 +1,8 @@
+$ ssh ubuntu-util set -x; sudo systemctl start pg_verify_restore.service; systemctl show pg_verify_restore.service -p Result; sudo cat /var/backups/postgres/verify.log; sudo -u postgres psql -Atc "SELECT count(*) AS bases_temporales_restantes FROM pg_database WHERE datname LIKE 'backup_verify_%';"
++ sudo systemctl start pg_verify_restore.service
++ systemctl show pg_verify_restore.service -p Result
+Result=success
++ sudo cat /var/backups/postgres/verify.log
+2026-11-19 20:17:17 - Verification OK: /var/backups/postgres/inventory_db_20261119_201651.vpTh0j.sql.gz (3 rows match)
++ sudo -u postgres psql -Atc 'SELECT count(*) AS bases_temporales_restantes FROM pg_database WHERE datname LIKE '\''backup_verify_%'\'';'
+0

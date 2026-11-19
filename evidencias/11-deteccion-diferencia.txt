@@ -1,0 +1,17 @@
+$ ssh ubuntu-util set -x
+psql -h localhost -U app_user -d inventory_db -c "INSERT INTO inventory (item_name, quantity) VALUES ('Widget D', 10);"
+sudo systemctl start pg_verify_restore.service
+systemctl show pg_verify_restore.service -p Result
+sudo tail -1 /var/backups/postgres/verify.log
+sudo -u postgres psql -Atc "SELECT count(*) FROM pg_database WHERE datname LIKE 'backup_verify_%';"
++ psql -h localhost -U app_user -d inventory_db -c 'INSERT INTO inventory (item_name, quantity) VALUES ('\''Widget D'\'', 10);'
+INSERT 0 1
++ sudo systemctl start pg_verify_restore.service
+Job for pg_verify_restore.service failed because the control process exited with error code.
+See "systemctl status pg_verify_restore.service" and "journalctl -xeu pg_verify_restore.service" for details.
++ systemctl show pg_verify_restore.service -p Result
+Result=exit-code
++ sudo tail -1 /var/backups/postgres/verify.log
+2026-11-19 20:18:08 - VERIFICATION FAILED: /var/backups/postgres/inventory_db_20261119_201736.4bkwxT.sql.gz (original=4 restored=3)
++ sudo -u postgres psql -Atc 'SELECT count(*) FROM pg_database WHERE datname LIKE '\''backup_verify_%'\'';'
+0

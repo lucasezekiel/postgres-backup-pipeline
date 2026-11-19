@@ -1,0 +1,11 @@
+$ ssh ubuntu-util set -x; sudo systemctl start pg_backup.service; systemctl show pg_backup.service -p Result -p ExecMainStatus; sudo ls -l /var/backups/postgres/; sudo cat /var/backups/postgres/backup.log
++ sudo systemctl start pg_backup.service
++ systemctl show pg_backup.service -p Result -p ExecMainStatus
+Result=success
+ExecMainStatus=0
++ sudo ls -l /var/backups/postgres/
+total 8
+-rw-r--r-- 1 postgres postgres  110 Nov 19 20:16 backup.log
+-rw------- 1 postgres postgres 1005 Nov 19 20:16 inventory_db_20261119_201651.vpTh0j.sql.gz
++ sudo cat /var/backups/postgres/backup.log
+2026-11-19 20:16:52 - Backup created: /var/backups/postgres/inventory_db_20261119_201651.vpTh0j.sql.gz (4.0K)

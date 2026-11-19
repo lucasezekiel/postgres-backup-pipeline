@@ -13,7 +13,7 @@ An Ansible lab that provisions a PostgreSQL database and schedules backups, rete
 **`postgresql` role**
 
 - Installs PostgreSQL and its Python bindings
-- Creates a database and an application user (password supplied via Ansible Vault)
+- Creates a database and an application user (password supplied via Ansible Vault) with data privileges on the tables and sequences in `public`
 - Loads a seed schema and sample data, idempotently (`INSERT ... ON CONFLICT DO NOTHING`)
 
 **`backup` role**
@@ -52,7 +52,7 @@ Retention and restore selection recognize only `<db>_YYYYMMDD_HHMMSS.sql.gz` (th
 
 - Ansible ≥ 2.16 on the control node
 - `community.postgresql` 4.2.0, declared in `requirements.yml` (install with `ansible-galaxy collection install -r requirements.yml`)
-- A disposable target server reachable via SSH (tested on Ubuntu 22.04.5 LTS in a QEMU/libvirt lab; see the test scope below)
+- A disposable target server reachable via SSH (tested on Ubuntu 22.04.5 and 24.04.5 LTS in a QEMU/libvirt lab; see the test scope below)
 - A locally created Ansible Vault containing your own test database password (see below)
 
 ## Create your own lab Vault
@@ -136,13 +136,30 @@ The static Ansible helper uses a temporary copy of the roles and playbook with a
 
 ## Disposable VM test
 
-On a disposable Ubuntu 22.04.5 LTS QEMU/libvirt VM, a temporary copy of the preceding working revision was applied with Ansible Core 2.22.0 and `community.postgresql` 4.2.0. The run completed with `ok=14`, `changed=11`, `unreachable=0`, and `failed=0`. Both systemd timers were enabled and listed.
+Tested on QEMU/libvirt VMs with Ansible Core 2.22.0 and `community.postgresql` 4.2.0.
 
-The backup service was started manually and completed successfully, producing a compressed backup. The restore verification service was then started manually and completed successfully; its log reported that the `inventory` row counts matched (3 rows). Afterward, the source table still had 3 rows, and a query found no databases whose names began with `backup_verify_`.
+**Ubuntu 24.04.5 LTS, PostgreSQL 16 (2026-11-19):**
 
-A repeat playbook run in the same lab completed with `ok=13`, `changed=0`, `unreachable=0`, and `failed=0`, including the seed task. After the filename-selection change, a further run completed with `ok=13`, `changed=2`, `unreachable=0`, and `failed=0`, updating the two scripts. The updated restore service successfully verified the existing backup. It was run again after creating a newer empty decoy file with a similar database-name prefix; it ignored the decoy and restored the intended backup.
+| Test | Result |
+|---|---|
+| First run | `ok=14 changed=11 unreachable=0 failed=0` |
+| Repeat run | `ok=13 changed=0` (idempotent, including the seed) |
+| Access as `app_user` | ❌ `permission denied for table inventory`, **fixed** in this revision |
+| Run with the fix | `changed=2` (only the `GRANT`s); the next run `changed=0` |
+| `app_user` after the fix | can read and update; cannot create tables |
+| Manual backup and verification | `0600` backup, `Verification OK (3 rows match)`, no leftover temporary databases |
+| Retention | deletes the eligible 20-day-old backup; keeps the 7-day-old one and foreign names |
+| Stale backup | verification fails (`original=4 restored=3`) and the service ends in a failed state |
 
-The decoy's modification time was then set to 20 days in the past. The updated backup service created a new backup and left the decoy in place. This checked that retention did not delete that similarly named file; deletion of an eligible old backup belonging to the same database was not tested in the VM. These are observed results for that state and toolchain, not guarantees for all versions or target states. Timer execution at the scheduled time, application-user access, and recovery after a server failure have not been tested in this VM.
+**Ubuntu 22.04.5 LTS (previous revision):**
+
+- First run `ok=14 changed=11`; repeat run `ok=13 changed=0`.
+- Manual backup and verification succeeded.
+- A newer decoy with a similar prefix was ignored by the restore and kept by retention.
+
+📸 Screenshots and full output in [`evidencias/`](evidencias/README.md) (Spanish).
+
+These are observed results for those states and versions, not guarantees. Timer execution at the scheduled time and recovery after a server failure are still untested.
 
 ## Design decisions
 
@@ -155,13 +172,13 @@ The decoy's modification time was then set to 20 days in the past. The updated b
 
 - **Chained tasks under `--check`**: enabling the systemd timers depends on the unit files existing for real, which `--check` never writes to disk. Check mode has not been tested on a clean VM for the current revision.
 - **Seed data and change reporting**: the SQL seed uses `ON CONFLICT DO NOTHING`, and the repeat run reported no changes with the tested collection version. Behavior with other versions or database states has not been tested.
-- **Application privileges not verified**: user creation and database privileges were applied on the lab VM using `community.postgresql` 4.2.0, but access as the application user was not tested. Database-level privileges do not automatically grant access to tables or sequences.
+- **Application privileges**: the user gets `SELECT/INSERT/UPDATE/DELETE` on existing tables in `public` and usage of its sequences. Tables created **later** are not covered until the playbook runs again (no `DEFAULT PRIVILEGES` are configured).
 - **Local lab environment**: unlike a real always-on server, the libvirt lab VM must be started manually (`virsh start <vm>`) after the host machine reboots — a constraint of the local lab setup, not of the playbook itself. Timers with `Persistent=true` catch up on the missed run once the VM is running again.
 - **Limited restore check**: row counts do not compare row contents, other tables, roles, or permissions. Changes to the live table after the backup can also cause a mismatch even if the backup restored correctly.
 - **Cleanup after interruption**: normal failures trigger cleanup of the temporary database, but an uncatchable termination or machine failure can leave it behind. Review the PostgreSQL databases before manually removing anything.
 - **Local backups only**: backups are not encrypted or copied off-host; a server or disk failure can affect both the database and its backups.
 - **Lab-only database names**: the backup scripts accept only letters, digits and underscores in `db_name`.
-- **Test scope**: the simulated tests do not exercise PostgreSQL or systemd; they do check the retention age boundary with fake files. The VM test covered first and repeat playbook runs, both updated services, selection with a newer similar-prefix decoy, and retaining that decoy when it was old. Scheduled execution, removal of an eligible old backup, and failure recovery still need testing against a real PostgreSQL server.
+- **Test scope**: the simulated tests do not exercise PostgreSQL or systemd; they do check the retention age boundary with fake files. The VM tests covered playbook runs, application access, both services, retention (including removal of an eligible old backup) and stale-backup detection. Scheduled execution and failure recovery are still untested.
 
 ## Next improvements
 

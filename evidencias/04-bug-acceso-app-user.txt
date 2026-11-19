@@ -1,0 +1,10 @@
+$ ssh ubuntu-util echo "+ psql -U app_user -c \"SELECT count(*) FROM inventory\""; psql -h localhost -U app_user -d inventory_db -c "SELECT count(*) FROM inventory;" 2>&1; echo "+ \\dp inventory (como postgres)"; sudo -u postgres psql -d inventory_db -c "\dp inventory"
++ psql -U app_user -c "SELECT count(*) FROM inventory"
+ERROR:  permission denied for table inventory
++ \dp inventory (como postgres)
+                               Access privileges
+ Schema |   Name    | Type  | Access privileges | Column privileges | Policies 
+--------+-----------+-------+-------------------+-------------------+----------
+ public | inventory | table |                   |                   | 
+(1 row)
+

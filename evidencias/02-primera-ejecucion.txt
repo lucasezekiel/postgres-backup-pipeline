@@ -1,0 +1,57 @@
+$ ansible-playbook -i inventory/lab.yml site.yml
+
+PLAY [Provisionar PostgreSQL con datos de prueba] ******************************
+
+TASK [Gathering Facts] *********************************************************
+[WARNING]: Host 'postgres_lab' is using the discovered Python interpreter at '/usr/bin/python3.12', but future installation of another Python interpreter could cause a different interpreter to be discovered. See https://docs.ansible.com/ansible-core/2.22/reference_appendices/interpreter_discovery.html for more information.
+ok: [postgres_lab]
+
+TASK [postgresql : Instalar PostgreSQL y dependencias de Python] ***************
+changed: [postgres_lab]
+
+TASK [postgresql : Asegurar que PostgreSQL esté activo y habilitado] ***********
+ok: [postgres_lab]
+
+TASK [postgresql : Crear la base de datos] *************************************
+[WARNING]: Module remote_tmp /var/lib/postgresql/.ansible/tmp did not exist and was created with a mode of 0700, this may cause issues when running as another user. To avoid this, create the remote_tmp dir with the correct permissions manually
+[WARNING]: Deprecation warnings can be disabled by setting `deprecation_warnings=False` in ansible.cfg.
+[DEPRECATION WARNING]: The `ansible.module_utils.six` module is deprecated. This feature will be removed from ansible-core version 2.24. Use the Python standard library equivalent instead.
+changed: [postgres_lab]
+
+TASK [postgresql : Crear el usuario de la aplicación] **************************
+changed: [postgres_lab]
+
+TASK [postgresql : Otorgar privilegios sobre la base de datos] *****************
+changed: [postgres_lab]
+
+TASK [postgresql : Cargar esquema y datos semilla] *****************************
+changed: [postgres_lab]
+
+TASK [backup : Crear directorio de backups] ************************************
+changed: [postgres_lab]
+
+TASK [backup : Crear directorio para los scripts] ******************************
+changed: [postgres_lab]
+
+TASK [backup : Copiar el script de backup] *************************************
+changed: [postgres_lab]
+
+TASK [backup : Copiar el script de verificación de restore] ********************
+changed: [postgres_lab]
+
+TASK [backup : Crear unidades systemd] *****************************************
+changed: [postgres_lab] => (item=pg_backup.service)
+changed: [postgres_lab] => (item=pg_backup.timer)
+changed: [postgres_lab] => (item=pg_verify_restore.service)
+changed: [postgres_lab] => (item=pg_verify_restore.timer)
+
+TASK [backup : Habilitar e iniciar los timers] *********************************
+changed: [postgres_lab] => (item=pg_backup.timer)
+changed: [postgres_lab] => (item=pg_verify_restore.timer)
+
+RUNNING HANDLER [backup : Recargar systemd] ************************************
+ok: [postgres_lab]
+
+PLAY RECAP *********************************************************************
+postgres_lab               : ok=14   changed=11   unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+

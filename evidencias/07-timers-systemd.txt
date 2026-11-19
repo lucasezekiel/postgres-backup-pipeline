@@ -1,0 +1,8 @@
+$ ssh ubuntu-util systemctl list-timers "pg_*" --all; systemctl cat pg_backup.timer | grep -E "OnCalendar|Persistent"
+NEXT                            LEFT LAST PASSED UNIT                    ACTIVATES
+Fri 2026-11-20 00:00:00 UTC 3h 43min -         - pg_backup.timer         pg_backup.service
+Mon 2026-11-23 00:00:00 UTC   3 days -         - pg_verify_restore.timer pg_verify_restore.service
+
+2 timers listed.
+OnCalendar=daily
+Persistent=true

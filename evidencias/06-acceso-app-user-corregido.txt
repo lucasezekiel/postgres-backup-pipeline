@@ -1,0 +1,15 @@
+$ ssh ubuntu-util set -x; psql -h localhost -U app_user -d inventory_db -c "SELECT item_name, quantity FROM inventory ORDER BY id;"; psql -h localhost -U app_user -d inventory_db -c "UPDATE inventory SET quantity = quantity WHERE id = 1;"; psql -h localhost -U app_user -d inventory_db -c "CREATE TABLE intruso(id int);"
++ psql -h localhost -U app_user -d inventory_db -c 'SELECT item_name, quantity FROM inventory ORDER BY id;'
+ item_name | quantity 
+-----------+----------
+ Widget A  |      120
+ Widget B  |       45
+ Widget C  |      300
+(3 rows)
+
++ psql -h localhost -U app_user -d inventory_db -c 'UPDATE inventory SET quantity = quantity WHERE id = 1;'
+UPDATE 1
++ psql -h localhost -U app_user -d inventory_db -c 'CREATE TABLE intruso(id int);'
+ERROR:  permission denied for schema public
+LINE 1: CREATE TABLE intruso(id int);
+                     ^

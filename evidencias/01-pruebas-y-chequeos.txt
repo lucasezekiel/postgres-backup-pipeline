@@ -1,0 +1,22 @@
+$ bash -c python3 -m unittest discover -s tests 2>&1 | tail -3 && python3 scripts/check_templates.py && python3 scripts/check_ansible.py
+Ran 17 tests in 0.206s
+
+OK
+Rendered Bash syntax and ShellCheck passed.
+
+playbook: site.yml
+[WARNING]: Deprecation warnings can be disabled by setting `deprecation_warnings=False` in ansible.cfg.
+[DEPRECATION WARNING]: oneline has been deprecated. Use another callback plugin, or vendor and/or move the oneline callback to a collection. This feature will be removed from ansible-core version 2.23.
+Origin: <unknown>
+
+oneline
+
+[DEPRECATION WARNING]: tree has been deprecated. Use another callback plugin, or vendor and/or move the tree callback to a collection. This feature will be removed from ansible-core version 2.23.
+Origin: <unknown>
+
+tree
+
+[DEPRECATION WARNING]: The `ansible.module_utils.six` module is deprecated. This feature will be removed from ansible-core version 2.24. Use the Python standard library equivalent instead.
+WARNING  /home/lucas/.local/share/pipx/venvs/ansible-core/lib/python3.13/site-packages/ansible/utils/display.py:722 AnsibleWarning Deprecation warnings can be disabled by setting `deprecation_warnings=False` in ansible.cfg.
+
+Passed: 0 failure(s), 0 warning(s) in 4 files processed of 4 encountered. Last profile that met the validation criteria was 'production'.

@@ -1,0 +1,59 @@
+$ ansible-playbook -i inventory/lab.yml site.yml
+
+PLAY [Provisionar PostgreSQL con datos de prueba] ******************************
+
+TASK [Gathering Facts] *********************************************************
+[WARNING]: Host 'postgres_lab' is using the discovered Python interpreter at '/usr/bin/python3.12', but future installation of another Python interpreter could cause a different interpreter to be discovered. See https://docs.ansible.com/ansible-core/2.22/reference_appendices/interpreter_discovery.html for more information.
+ok: [postgres_lab]
+
+TASK [postgresql : Instalar PostgreSQL y dependencias de Python] ***************
+ok: [postgres_lab]
+
+TASK [postgresql : Asegurar que PostgreSQL esté activo y habilitado] ***********
+ok: [postgres_lab]
+
+TASK [postgresql : Crear la base de datos] *************************************
+[WARNING]: Deprecation warnings can be disabled by setting `deprecation_warnings=False` in ansible.cfg.
+[DEPRECATION WARNING]: The `ansible.module_utils.six` module is deprecated. This feature will be removed from ansible-core version 2.24. Use the Python standard library equivalent instead.
+ok: [postgres_lab]
+
+TASK [postgresql : Crear el usuario de la aplicación] **************************
+ok: [postgres_lab]
+
+TASK [postgresql : Otorgar privilegios sobre la base de datos] *****************
+ok: [postgres_lab]
+
+TASK [postgresql : Cargar esquema y datos semilla] *****************************
+ok: [postgres_lab]
+
+TASK [postgresql : Otorgar privilegios de datos sobre las tablas del esquema public] ***
+changed: [postgres_lab]
+
+TASK [postgresql : Otorgar uso de las secuencias del esquema public] ***********
+changed: [postgres_lab]
+
+TASK [backup : Crear directorio de backups] ************************************
+ok: [postgres_lab]
+
+TASK [backup : Crear directorio para los scripts] ******************************
+ok: [postgres_lab]
+
+TASK [backup : Copiar el script de backup] *************************************
+ok: [postgres_lab]
+
+TASK [backup : Copiar el script de verificación de restore] ********************
+ok: [postgres_lab]
+
+TASK [backup : Crear unidades systemd] *****************************************
+ok: [postgres_lab] => (item=pg_backup.service)
+ok: [postgres_lab] => (item=pg_backup.timer)
+ok: [postgres_lab] => (item=pg_verify_restore.service)
+ok: [postgres_lab] => (item=pg_verify_restore.timer)
+
+TASK [backup : Habilitar e iniciar los timers] *********************************
+ok: [postgres_lab] => (item=pg_backup.timer)
+ok: [postgres_lab] => (item=pg_verify_restore.timer)
+
+PLAY RECAP *********************************************************************
+postgres_lab               : ok=15   changed=2    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+

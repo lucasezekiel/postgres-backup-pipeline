@@ -13,7 +13,7 @@ Laboratorio con Ansible que instala PostgreSQL y programa copias de seguridad, l
 **Rol `postgresql`**
 
 - Instala PostgreSQL y sus bindings de Python.
-- Crea una base de datos y un usuario de aplicación (contraseña provista con Ansible Vault).
+- Crea una base de datos y un usuario de aplicación (contraseña provista con Ansible Vault), con privilegios de datos sobre las tablas y secuencias del esquema `public`.
 - Carga un esquema y datos de ejemplo de forma idempotente (`INSERT ... ON CONFLICT DO NOTHING`).
 
 **Rol `backup`**
@@ -69,7 +69,7 @@ Cualquier otro nombre se ignora: nunca se selecciona ni se borra. El formato del
 - Ansible ≥ 2.16 en el nodo de control.
 - `community.postgresql` 4.2.0, declarada en `requirements.yml`:
   `ansible-galaxy collection install -r requirements.yml`
-- Un servidor de pruebas desechable accesible por SSH (probado con Ubuntu 22.04.5 LTS en QEMU/libvirt).
+- Un servidor de pruebas desechable accesible por SSH (probado con Ubuntu 22.04.5 y 24.04.5 LTS en QEMU/libvirt).
 - Un Ansible Vault propio con una contraseña de prueba (ver abajo).
 
 ## Crear tu propio Vault de laboratorio
@@ -168,19 +168,30 @@ python3 scripts/check_ansible.py
 
 ### Prueba en VM desechable
 
-Sobre una VM Ubuntu 22.04.5 LTS en QEMU/libvirt, con Ansible Core 2.22.0 y `community.postgresql` 4.2.0:
+Probado en VMs QEMU/libvirt con Ansible Core 2.22.0 y `community.postgresql` 4.2.0.
+
+**Ubuntu 24.04.5 LTS, PostgreSQL 16 (2026-11-19):**
 
 | Prueba | Resultado |
 |---|---|
-| Primera ejecución | `ok=14 changed=11 unreachable=0 failed=0`; ambos timers habilitados |
-| Backup manual | archivo comprimido creado |
-| Verificación manual | filas coincidentes (3), sin bases `backup_verify_*` residuales |
-| Segunda ejecución | `ok=13 changed=0` (idempotente, incluido el seed) |
-| Tras cambiar la selección de nombres | `ok=13 changed=2` (solo los dos scripts) |
-| Señuelo con prefijo parecido y más nuevo | ignorado; se restauró el backup correcto |
-| Señuelo con 20 días de antigüedad | conservado por la retención |
+| Primera ejecución | `ok=14 changed=11 unreachable=0 failed=0` |
+| Repetición | `ok=13 changed=0` (idempotente, incluido el seed) |
+| Acceso como `app_user` | ❌ `permission denied for table inventory`, **corregido** en esta revisión |
+| Ejecución con el fix | `changed=2` (solo los `GRANT`); la siguiente, `changed=0` |
+| `app_user` tras el fix | lee y actualiza; no puede crear tablas |
+| Backup y verificación manuales | backup `0600`, `Verification OK (3 rows match)`, sin bases temporales |
+| Retención | borra el backup elegible de 20 días; conserva el de 7 días y los de nombre ajeno |
+| Backup desactualizado | la verificación falla (`original=4 restored=3`) y el servicio queda en error |
 
-Las evidencias de cada ejecución están en [`evidencias/`](evidencias/).
+**Ubuntu 22.04.5 LTS (revisión anterior):**
+
+- Primera ejecución: `ok=14 changed=11`; repetición: `ok=13 changed=0`.
+- Backup y verificación manuales correctos.
+- Un señuelo más nuevo con prefijo parecido fue ignorado al restaurar y conservado por la retención.
+
+📸 Capturas y salidas completas en [`evidencias/`](evidencias/README.md).
+
+Son resultados observados para esos estados y versiones, no garantías. Falta probar la ejecución de los timers a la hora programada y la recuperación tras una falla del servidor.
 
 ## Decisiones de diseño
 
@@ -192,7 +203,7 @@ Las evidencias de cada ejecución están en [`evidencias/`](evidencias/).
 ## Limitaciones conocidas
 
 - **Tareas encadenadas con `--check`:** habilitar los timers depende de que existan los unit files, que `--check` no escribe.
-- **Privilegios de la aplicación sin verificar:** no se probó el acceso como usuario de aplicación; los privilegios de base no otorgan acceso automático a tablas o secuencias.
+- **Privilegios de la aplicación:** el usuario recibe `SELECT/INSERT/UPDATE/DELETE` sobre las tablas existentes de `public` y uso de sus secuencias. Las tablas que se creen **después** no quedan cubiertas hasta volver a ejecutar el playbook (no se configuran `DEFAULT PRIVILEGES`).
 - **Entorno de laboratorio:** la VM de libvirt hay que encenderla a mano (`virsh start <vm>`) tras reiniciar el host. Con `Persistent=true`, los timers recuperan la ejecución perdida al volver.
 - **Verificación acotada:** comparar cantidad de filas no compara contenido, otras tablas, roles ni permisos. Cambios en la tabla posteriores al backup también pueden causar una diferencia.
 - **Limpieza tras una interrupción:** una terminación no capturable o una caída del equipo puede dejar la base temporal. Revisá antes de borrar a mano.
