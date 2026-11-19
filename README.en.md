@@ -1,4 +1,8 @@
+[🇪🇸 Español](README.md) | 🇬🇧 English
+
 # PostgreSQL Backup Pipeline
+
+[![Static checks and simulated tests](https://github.com/lucasezekiel/postgres-backup-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/lucasezekiel/postgres-backup-pipeline/actions/workflows/ci.yml)
 
 An Ansible lab that provisions a PostgreSQL database and schedules backups, retention cleanup, and a limited restore check. It is intended for a disposable test server, not for production use.
 
@@ -101,7 +105,7 @@ sudo -u postgres cat /var/backups/postgres/verify.log
 A successful run of the pipeline produces a log entry like:
 
 ```
-Verification OK: /var/backups/postgres/inventory_db_20260924_163243_a1b2c3.sql.gz (3 rows match)
+Verification OK: /var/backups/postgres/inventory_db_20260924_163243.a1b2c3.sql.gz (3 rows match)
 ```
 
 That line records that the restore command completed and the row counts matched for this one table at that moment. It does **not** establish that all database contents are identical or that recovery meets production requirements.
@@ -114,11 +118,11 @@ These tests require Python 3, Bash and standard GNU/Linux utilities. They use fa
 python3 -m unittest discover -s tests -v
 ```
 
-They cover successful and failed dumps, missing backups, restore errors, database creation errors, and cleanup. They do not replace an integration test against a disposable PostgreSQL server.
+They cover successful and failed dumps, missing backups, restore errors, database creation errors, cleanup, the retention boundary of `find -mtime +7`, and rejection of invalid database names or retention values. They do not replace an integration test against a disposable PostgreSQL server.
 
 ## Continuous integration
 
-The GitHub Actions workflow in `.github/workflows/ci.yml` is configured to run on pushes and pull requests. On its disposable GitHub-hosted runner it installs ShellCheck, the pinned Ansible tools and the collection, then runs the simulated tests, Bash syntax and ShellCheck against rendered scripts, Ansible syntax validation, and ansible-lint. Its first remote run still needs verification.
+The GitHub Actions workflow in `.github/workflows/ci.yml` runs on pushes and pull requests (see the badge above for the latest result). On its disposable GitHub-hosted runner it installs ShellCheck, the pinned Ansible tools and the collection, then runs the simulated tests, Bash syntax and ShellCheck against rendered scripts, Ansible syntax validation, and ansible-lint.
 
 The same checks can be run locally when Python, Jinja2, Bash, ShellCheck, Ansible Core 2.22.0, ansible-lint 26.11.0 and the collection in `requirements.yml` are already installed:
 
@@ -152,12 +156,12 @@ The decoy's modification time was then set to 20 days in the past. The updated b
 - **Chained tasks under `--check`**: enabling the systemd timers depends on the unit files existing for real, which `--check` never writes to disk. Check mode has not been tested on a clean VM for the current revision.
 - **Seed data and change reporting**: the SQL seed uses `ON CONFLICT DO NOTHING`, and the repeat run reported no changes with the tested collection version. Behavior with other versions or database states has not been tested.
 - **Application privileges not verified**: user creation and database privileges were applied on the lab VM using `community.postgresql` 4.2.0, but access as the application user was not tested. Database-level privileges do not automatically grant access to tables or sequences.
-- **Local lab environment**: unlike a real always-on server, the Multipass VM must be started manually (`multipass start postgres-target`) after the host machine reboots or resumes from suspend — a constraint of the local lab setup, not of the playbook itself.
+- **Local lab environment**: unlike a real always-on server, the libvirt lab VM must be started manually (`virsh start <vm>`) after the host machine reboots — a constraint of the local lab setup, not of the playbook itself. Timers with `Persistent=true` catch up on the missed run once the VM is running again.
 - **Limited restore check**: row counts do not compare row contents, other tables, roles, or permissions. Changes to the live table after the backup can also cause a mismatch even if the backup restored correctly.
 - **Cleanup after interruption**: normal failures trigger cleanup of the temporary database, but an uncatchable termination or machine failure can leave it behind. Review the PostgreSQL databases before manually removing anything.
 - **Local backups only**: backups are not encrypted or copied off-host; a server or disk failure can affect both the database and its backups.
 - **Lab-only database names**: the backup scripts accept only letters, digits and underscores in `db_name`.
-- **Test scope**: the simulated tests do not exercise PostgreSQL or systemd. The VM test covered first and repeat playbook runs, both updated services, selection with a newer similar-prefix decoy, and retaining that decoy when it was old. Scheduled execution, removal of an eligible old backup, and failure recovery still need testing against a real PostgreSQL server.
+- **Test scope**: the simulated tests do not exercise PostgreSQL or systemd; they do check the retention age boundary with fake files. The VM test covered first and repeat playbook runs, both updated services, selection with a newer similar-prefix decoy, and retaining that decoy when it was old. Scheduled execution, removal of an eligible old backup, and failure recovery still need testing against a real PostgreSQL server.
 
 ## Next improvements
 
