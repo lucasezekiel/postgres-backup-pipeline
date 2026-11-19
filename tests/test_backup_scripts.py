@@ -187,6 +187,50 @@ class BackupScriptsTest(unittest.TestCase):
         self.assertTrue(other.exists())
         self.assertTrue(custom.exists())
 
+    def render_and_run(self, db_name="inventory_db", retention="7"):
+        text = (TEMPLATES / "pg_backup.sh.j2").read_text()
+        text = text.replace("{{ db_name }}", db_name)
+        text = text.replace("{{ backup_dir }}", str(self.backups))
+        text = text.replace("{{ backup_retention_days }}", retention)
+        script = self.root / "script.sh"
+        script.write_text(text)
+        env = os.environ.copy()
+        env.update(PATH=f"{self.bin}:{env['PATH']}", CALLS=str(self.calls))
+        return subprocess.run(["bash", str(script)], env=env, capture_output=True, text=True)
+
+    def test_retention_boundary_follows_find_mtime_semantics(self):
+        # find -mtime +7 matches files at least 8 complete days old.
+        day = 24 * 60 * 60
+        cases = {
+            "inventory_db_20260901_000000.aB123c.sql.gz": (1, True),
+            "inventory_db_20260902_000000.aB123c.sql.gz": (7.5, True),
+            "inventory_db_20260903_000000.aB123c.sql.gz": (8.5, False),
+            "inventory_db_20260904_000000.aB123c.sql.gz": (30, False),
+        }
+        now = time.time()
+        for name, (age_days, _) in cases.items():
+            path = self.backups / name
+            path.write_bytes(b"backup")
+            os.utime(path, (now - age_days * day, now - age_days * day))
+        result = self.run_script("pg_backup.sh.j2")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for name, (age_days, kept) in cases.items():
+            self.assertEqual((self.backups / name).exists(), kept, f"{name} ({age_days} days)")
+
+    def test_invalid_database_name_is_rejected_before_dump(self):
+        for name in ("inventory-db", "inventory db", "x;rm"):
+            with self.subTest(name=name):
+                result = self.render_and_run(db_name=name)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Invalid database name", result.stderr)
+                self.assertEqual(self.calls_text(), "")
+
+    def test_invalid_retention_is_rejected_before_dump(self):
+        result = self.render_and_run(retention="seven")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self.calls_text(), "")
+        self.assertEqual(list(self.backups.iterdir()), [])
+
     def test_failed_creation_never_drops_a_database(self):
         self.create_backup()
         result = self.run_script("pg_verify_restore.sh.j2", FAIL_CREATE="1")
