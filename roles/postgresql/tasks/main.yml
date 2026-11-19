@@ -47,3 +47,28 @@
   community.postgresql.postgresql_query:
     login_db: "{{ db_name }}"
     query: "{{ lookup('file', role_path + '/files/schema.sql') }}"
+
+# Database-level privileges do not cover existing tables or sequences.
+- name: Otorgar privilegios de datos sobre las tablas del esquema public
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_privs:
+    login_db: "{{ db_name }}"
+    type: table
+    schema: public
+    objs: ALL_IN_SCHEMA
+    roles: "{{ db_user }}"
+    privs: SELECT,INSERT,UPDATE,DELETE
+    state: present
+
+- name: Otorgar uso de las secuencias del esquema public
+  become: true
+  become_user: postgres
+  community.postgresql.postgresql_privs:
+    login_db: "{{ db_name }}"
+    type: sequence
+    schema: public
+    objs: ALL_IN_SCHEMA
+    roles: "{{ db_user }}"
+    privs: USAGE,SELECT
+    state: present
